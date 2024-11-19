@@ -14,19 +14,32 @@ if uploaded_file:
         # Read the CSV file
         reviews_df = pd.read_csv(uploaded_file)
 
-        # Automatically detect the column containing text-like data
-        text_column = None
-        for column in reviews_df.columns:
-            if reviews_df[column].dtype == object:  # Check for string-like columns
-                text_column = column
-                break
+        # Smart Detection of Text Column
+        def detect_text_column(df):
+            scores = {}
+            for column in df.columns:
+                if df[column].dtype == object:  # Only consider object (string-like) columns
+                    text_content_ratio = df[column].apply(lambda x: isinstance(x, str)).mean()
+                    avg_text_length = df[column].apply(lambda x: len(str(x)) if isinstance(x, str) else 0).mean()
+                    keyword_match = 1 if any(keyword in column.lower() for keyword in ['review', 'feedback', 'comment', 'message']) else 0
+                    
+                    # Calculate a score combining the metrics
+                    score = (text_content_ratio * 0.5) + (avg_text_length * 0.4) + (keyword_match * 0.1)
+                    scores[column] = score
+            
+            # Select the column with the highest score
+            if scores:
+                best_column = max(scores, key=scores.get)
+                return best_column, scores[best_column]
+            return None, 0
 
+        # Detect the review column
+        text_column, column_score = detect_text_column(reviews_df)
         if not text_column:
-            st.error("No text-like column found in the uploaded file. Please ensure your file contains review text.")
+            st.error("No suitable text column found. Please ensure your file contains review-like data.")
             st.stop()
 
-        # Display detected column
-        st.success(f"Detected review text column: '{text_column}'")
+        st.success(f"Detected review text column: '{text_column}' (Score: {column_score:.2f})")
         st.write(reviews_df.head())
 
         # Perform Sentiment Analysis
