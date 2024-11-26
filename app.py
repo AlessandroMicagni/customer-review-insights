@@ -1,24 +1,28 @@
 import streamlit as st
 import pandas as pd
-from textblob import TextBlob
-import requests
+from premai import Prem
+
+# Prem Configuration
+API_KEY = "205ICPH4NmJxv9gFYGlMXhpVTr7egbYXTe"  # Replace with your actual API key
+PROJECT_ID = "458"  # Replace with your project ID
+client = Prem(api_key=API_KEY)
 
 # App Title
-st.title("🎯 Customer Review Insights")
+st.title("🎯 Customer Review Insights with Prem SDK")
 
 # Upload File Section
 uploaded_file = st.file_uploader("Upload a CSV file containing reviews", type=["csv"])
 
 if uploaded_file:
     try:
-        # Read the CSV file
+        # Read the uploaded file
         reviews_df = pd.read_csv(uploaded_file)
 
         # Smart Detection of Text Column
         def detect_text_column(df):
             scores = {}
             for column in df.columns:
-                if df[column].dtype == object:  # Only consider object (string-like) columns
+                if df[column].dtype == object:  # Check for string-like columns
                     text_content_ratio = df[column].apply(lambda x: isinstance(x, str)).mean()
                     avg_text_length = df[column].apply(lambda x: len(str(x)) if isinstance(x, str) else 0).mean()
                     keyword_match = 1 if any(keyword in column.lower() for keyword in ['review', 'feedback', 'comment', 'message']) else 0
@@ -42,51 +46,43 @@ if uploaded_file:
         st.success(f"Detected review text column: '{text_column}' (Score: {column_score:.2f})")
         st.write(reviews_df.head())
 
-        # Perform Sentiment Analysis
-        st.subheader("Sentiment Analysis")
-        reviews_df['sentiment'] = reviews_df[text_column].apply(
-            lambda x: TextBlob(str(x)).sentiment.polarity if isinstance(x, str) else 0
-        )
-        reviews_df['sentiment_category'] = reviews_df['sentiment'].apply(
-            lambda x: "Positive" if x > 0 else "Negative" if x < 0 else "Neutral"
-        )
-        st.write(reviews_df[[text_column, 'sentiment_category']])
+        # Prem Chat Completion: Sentiment Analysis
+        def analyze_sentiment_prem(texts):
+            responses = []
+            for text in texts:
+                messages = [{"role": "user", "content": f"Analyze the sentiment of this text: '{text}'"}]
+                response = client.chat.completions.create(
+                    project_id=PROJECT_ID,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=50
+                )
+                sentiment = response.choices[0].message.content.strip()
+                responses.append(sentiment)
+            return responses
 
-        # Detect Topics Based on Keywords
-        def detect_topic(review):
-            review = review.lower()
-            if "delivery" in review:
-                return "Delivery"
-            elif "quality" in review or "build" in review:
-                return "Product Quality"
-            elif "support" in review or "service" in review:
-                return "Customer Support"
-            elif "price" in review or "expensive" in review:
-                return "Pricing"
-            return "Other"
+        st.subheader("Sentiment Analysis with Prem")
+        reviews_df['sentiment'] = analyze_sentiment_prem(reviews_df[text_column].dropna().tolist())
+        st.write(reviews_df[[text_column, 'sentiment']])
 
-        reviews_df['topic'] = reviews_df[text_column].apply(detect_topic)
+        # Prem Chat Completion: Topic Detection
+        def detect_topics_prem(texts):
+            responses = []
+            for text in texts:
+                messages = [{"role": "user", "content": f"Categorize this text into a topic: '{text}'"}]
+                response = client.chat.completions.create(
+                    project_id=PROJECT_ID,
+                    messages=messages,
+                    temperature=0.7,
+                    max_tokens=50
+                )
+                topic = response.choices[0].message.content.strip()
+                responses.append(topic)
+            return responses
 
-        st.subheader("Reviews Organized by Topic")
+        st.subheader("Topic Detection with Prem")
+        reviews_df['topic'] = detect_topics_prem(reviews_df[text_column].dropna().tolist())
         st.write(reviews_df[[text_column, 'topic']])
-
-        # Detect Types Based on Sentiment and Words
-        def detect_type(review, sentiment):
-            review = review.lower()
-            if sentiment == "Negative":
-                return "Complaint"
-            elif sentiment == "Positive" and ("thank" in review or "love" in review):
-                return "Praise"
-            elif "should" in review or "could" in review:
-                return "Suggestion"
-            return "General Feedback"
-
-        reviews_df['type'] = reviews_df.apply(
-            lambda row: detect_type(row[text_column], row['sentiment_category']), axis=1
-        )
-
-        st.subheader("Reviews Organized by Type")
-        st.write(reviews_df[[text_column, 'type']])
 
         # Filter by Topic
         st.subheader("Filter Reviews by Topic")
@@ -94,17 +90,11 @@ if uploaded_file:
         if selected_topic != "All":
             st.write(reviews_df[reviews_df['topic'] == selected_topic])
 
-        # Filter by Type
-        st.subheader("Filter Reviews by Type")
-        selected_type = st.selectbox("Select Type", options=["All"] + reviews_df['type'].unique().tolist())
-        if selected_type != "All":
-            st.write(reviews_df[reviews_df['type'] == selected_type])
-
         # Webhook Section
         st.subheader("Send Data to Webhook")
         webhook_url = st.text_input("Enter Webhook URL")
         if st.button("Send Insights"):
-            payload = reviews_df[[text_column, 'sentiment_category', 'topic', 'type']].to_dict(orient="records")
+            payload = reviews_df[[text_column, 'sentiment', 'topic']].to_dict(orient="records")
             try:
                 response = requests.post(webhook_url, json=payload)
                 st.success(f"Data sent! Webhook Response: {response.status_code}")
