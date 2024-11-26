@@ -50,12 +50,12 @@ if uploaded_file:
         def analyze_sentiment_prem(texts):
             responses = []
             for text in texts:
-                messages = [{"role": "user", "content": f"Analyze the sentiment of this text: '{text}'"}]
+                messages = [{"role": "user", "content": f"Classify the sentiment of this text as Positive, Negative, or Neutral: '{text}'"}]
                 response = client.chat.completions.create(
                     project_id=PROJECT_ID,
                     messages=messages,
                     temperature=0.7,
-                    max_tokens=50
+                    max_tokens=10
                 )
                 sentiment = response.choices[0].message.content.strip()
                 responses.append(sentiment)
@@ -69,12 +69,12 @@ if uploaded_file:
         def detect_topics_prem(texts):
             responses = []
             for text in texts:
-                messages = [{"role": "user", "content": f"Categorize this text into a topic: '{text}'"}]
+                messages = [{"role": "user", "content": f"Identify the topic of this text in one or two words: '{text}'"}]
                 response = client.chat.completions.create(
                     project_id=PROJECT_ID,
                     messages=messages,
                     temperature=0.7,
-                    max_tokens=50
+                    max_tokens=20
                 )
                 topic = response.choices[0].message.content.strip()
                 responses.append(topic)
