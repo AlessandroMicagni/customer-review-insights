@@ -61,7 +61,7 @@ if uploaded_file:
                 responses.append(sentiment)
             return responses
 
-        st.subheader("Sentiment Analysis with Prem")
+        st.subheader("Prem Sentiment Analysis")
         reviews_df['sentiment'] = analyze_sentiment_prem(reviews_df[text_column].dropna().tolist())
         st.write(reviews_df[[text_column, 'sentiment']])
 
@@ -80,7 +80,7 @@ if uploaded_file:
                 responses.append(topic)
             return responses
 
-        st.subheader("Topic Detection with Prem")
+        st.subheader("Prem Topic Detection ")
         reviews_df['topic'] = detect_topics_prem(reviews_df[text_column].dropna().tolist())
         st.write(reviews_df[[text_column, 'topic']])
 
